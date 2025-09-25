@@ -57,7 +57,7 @@ function App() {
         formData.append('body', body);
 
         try {
-            await axios.post('http://localhost:5000/api/send-emails', formData, {
+            await axios.post('https://inforag-backend.onrender.com/api/send-emails', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             // Show a success alert to the user
