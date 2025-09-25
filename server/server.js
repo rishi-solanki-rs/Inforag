@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
 // --- Middleware ---
 // Enable CORS for frontend communication
@@ -28,8 +28,8 @@ const upload = multer({ storage: storage });
 const transporter = nodemailer.createTransport({
     service: 'gmail', // or any other email service
     auth: {
-        user: process.env.EMAIL_USER || "0829cs221161@gmail.com",
-        pass: process.env.EMAIL_PASS || "etglbksxffhcdvop",
+        user: "0829cs221161@gmail.com",
+        pass: "etglbksxffhcdvop",
     },
 });
 
@@ -59,7 +59,7 @@ app.post('/api/send-emails', upload.single('file'), (req, res) => {
                 const personalizedBody = body.replace(/{name}/gi, recipientName);
 
                 const mailOptions = {
-                    from: process.env.EMAIL_USER,
+                    from: "0829cs221161@gmail.com",
                     to: recipientEmail,
                     subject: subject,
                     text: personalizedBody,
