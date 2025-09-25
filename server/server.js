@@ -10,33 +10,33 @@ const app = express();
 const PORT = 5000;
 
 // --- Middleware ---
-// Enable CORS for frontend communication
-app.use(cors({origin:'https://inforag-fronten.onrender.com',
-  credentials:true}));
-// Parse JSON bodies
+app.use(cors({
+    origin: 'https://inforag-fronten.onrender.com',
+    credentials: true
+}));
 app.use(express.json());
 
-// --- Multer Configuration for File Upload ---
-// We use memoryStorage to temporarily hold the file in memory before processing
+// --- Multer Configuration ---
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // --- Nodemailer Configuration ---
-// IMPORTANT: Use environment variables for security!
-// For Gmail, you might need to generate an "App Password"
-// https://support.google.com/accounts/answer/185833
+// FIX 1: Use environment variables for credentials. NEVER hardcode them.
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // or any other email service
+    service: 'gmail',
     auth: {
         user: "0829cs221161@gmail.com",
-        pass: "etglbksxffhcdvop",
+        pass: "etglbksxffhcdvop", // Use a Google App Password here
     },
+    // Adding a timeout to prevent hanging connections
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,   // 10 seconds
+    socketTimeout: 10000,     // 10 seconds
 });
 
 // --- API Endpoint ---
-// @route   POST /api/send-emails
-// @desc    Upload an excel file, parse it, and send emails
-app.post('/api/send-emails', upload.single('file'), (req, res) => {
+// FIX 2: Made the entire function async to handle email sending properly.
+app.post('/api/send-emails', upload.single('file'), async (req, res) => {
     const { subject, body } = req.body;
 
     if (!req.file) {
@@ -44,18 +44,17 @@ app.post('/api/send-emails', upload.single('file'), (req, res) => {
     }
 
     try {
-        // Parse the Excel file from the buffer
         const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(worksheet);
 
-        // Iterate over the data and send emails
-        data.forEach((row) => {
-            const recipientName = row.Name || 'There'; // Fallback if Name column is empty
-            const recipientEmail = row['Email IDs']; // Access column by its name
-
-            if (recipientEmail) {
+        // Create a list of promises, one for each email
+        const emailPromises = data
+            .filter(row => row['Email IDs']) // Ensure the email column exists and is not empty
+            .map((row) => {
+                const recipientName = row.Name || 'There';
+                const recipientEmail = row['Email IDs'];
                 const personalizedBody = body.replace(/{name}/gi, recipientName);
 
                 const mailOptions = {
@@ -63,20 +62,32 @@ app.post('/api/send-emails', upload.single('file'), (req, res) => {
                     to: recipientEmail,
                     subject: subject,
                     text: personalizedBody,
-                    // You can also use html: `<h1>Hello ${recipientName}</h1>`
                 };
 
-                transporter.sendMail(mailOptions, (error, info) => {
-                    if (error) {
-                        console.error(`Error sending email to ${recipientEmail}:`, error);
-                    } else {
-                        console.log(`Email sent to ${recipientEmail}: ${info.response}`);
-                    }
-                });
+                // Return the promise from transporter.sendMail
+                return transporter.sendMail(mailOptions);
+            });
+
+        // Wait for all emails to be sent
+        const results = await Promise.allSettled(emailPromises);
+
+        const successfulEmails = results.filter(r => r.status === 'fulfilled').length;
+        const failedEmails = results.filter(r => r.status === 'rejected').length;
+
+        console.log(`Processing complete. Success: ${successfulEmails}, Failed: ${failedEmails}`);
+
+        // Log detailed errors for failed emails
+        results.forEach(result => {
+            if (result.status === 'rejected') {
+                console.error('Failed to send email:', result.reason);
             }
         });
 
-        res.status(200).json({ message: 'Emails are being sent in the background.' });
+        res.status(200).json({
+            message: 'Email processing complete.',
+            successful: successfulEmails,
+            failed: failedEmails,
+        });
 
     } catch (error) {
         console.error('Error processing file:', error);
