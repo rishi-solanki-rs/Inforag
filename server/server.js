@@ -11,7 +11,8 @@ const PORT = process.env.PORT || 5000;
 
 // --- Middleware ---
 // Enable CORS for frontend communication
-app.use(cors());
+app.use(cors({origin:'https://inforag-fronten.onrender.com',
+  credentials:true}));
 // Parse JSON bodies
 app.use(express.json());
 
